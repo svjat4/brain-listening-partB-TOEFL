@@ -33,9 +33,9 @@ export async function saveLeaderboardEntry(input: {
   return { id, saved: true };
 }
 
-export async function getLeaderboard(limit = 10) {
+export async function getLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
   if (!redis) {
-    return [] as LeaderboardEntry[];
+    return [];
   }
 
   const ids = await redis.zrange(LEADERBOARD_ZSET, 0, limit - 1, {
@@ -44,13 +44,15 @@ export async function getLeaderboard(limit = 10) {
 
   const normalizedIds = Array.isArray(ids) ? ids.map((id) => String(id)) : [];
 
-  if (!normalizedIds.length) {
-    return [] as LeaderboardEntry[];
+  if (normalizedIds.length === 0) {
+    return [];
   }
+
+  const redisClient = redis;
 
   const entries = await Promise.all(
     normalizedIds.map(async (id) => {
-      const entry = await redis.get<LeaderboardEntry>(getEntryKey(id));
+      const entry = await redisClient.get<LeaderboardEntry>(getEntryKey(id));
       return { id, entry };
     }),
   );
@@ -67,7 +69,9 @@ export async function getLeaderboard(limit = 10) {
   }
 
   if (staleIds.length > 0) {
-    await Promise.all(staleIds.map((id) => redis.zrem(LEADERBOARD_ZSET, id)));
+    await Promise.all(
+      staleIds.map((id) => redisClient.zrem(LEADERBOARD_ZSET, id)),
+    );
   }
 
   return validEntries;
