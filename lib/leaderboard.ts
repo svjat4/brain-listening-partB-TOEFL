@@ -18,6 +18,8 @@ export async function saveLeaderboardEntry(input: {
     return { id: null as string | null, saved: false };
   }
 
+  const redisClient = redis;
+
   const id = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const entry: LeaderboardEntry = {
     id,
@@ -27,8 +29,8 @@ export async function saveLeaderboardEntry(input: {
     createdAt: Date.now(),
   };
 
-  await redis.set(getEntryKey(id), entry, { ex: ENTRY_TTL_SECONDS });
-  await redis.zadd(LEADERBOARD_ZSET, { score: input.score, member: id });
+  await redisClient.set(getEntryKey(id), entry, { ex: ENTRY_TTL_SECONDS });
+  await redisClient.zadd(LEADERBOARD_ZSET, { score: input.score, member: id });
 
   return { id, saved: true };
 }
@@ -38,7 +40,9 @@ export async function getLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
     return [];
   }
 
-  const ids = await redis.zrange(LEADERBOARD_ZSET, 0, limit - 1, {
+  const redisClient = redis;
+
+  const ids = await redisClient.zrange(LEADERBOARD_ZSET, 0, limit - 1, {
     rev: true,
   });
 
@@ -47,8 +51,6 @@ export async function getLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
   if (normalizedIds.length === 0) {
     return [];
   }
-
-  const redisClient = redis;
 
   const entries = await Promise.all(
     normalizedIds.map(async (id) => {
